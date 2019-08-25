@@ -17,28 +17,13 @@ Function GetAddonVersion {
     return $version
 }
 
-# Get the addon download link
-Function GetDownloadLink {
-    param($WebResponse)
-
-    if ($WebResponse.assets.browser_download_url) {
-        return $WebResponse.assets.browser_download_url
-    }
-
-    if ($WebResponse.zipball_url) {
-        return $WebResponse.zipball_url
-    }
-}
-
 # Get the addon folder name
 Function GetDownloadName {
-    param($WebResponse)
+    param($Link)
 
-    if ($WebResponse.name) {
-        return $WebResponse.name
-    }
-
-    return "WUT"
+    $downloadPath = Split-Path -Path $Link -Leaf
+    $splitPath = $downloadPath -split "\."
+    return $splitPath[0]
 }
 
 # Loop until first layer of TOC files
@@ -59,6 +44,33 @@ Function FindTocFiles {
 # Empty the extract folder
 Function EmptyExtracts {
     Remove-Item –path "$PSScriptRoot\Extract\*" -Recurse -Force
+}
+
+# Download github versions of addons
+Function GithubDownload {
+    param([string]$Url)
+
+    # Find the github user and repo in the url
+    $urlMatch = $Url | Select-String -Pattern 'github.com\/(.*)\/(.*)'
+    $user = $urlMatch.Matches.Groups[1].Value
+    $repo = $urlMatch.Matches.Groups[2].Value   
+
+    # Pull the information from the github API
+    $apiUrl = "https://api.github.com/repos/$user/$repo/releases/latest"
+
+    # Fetch the information about the release
+    $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $apiUrl
+
+    # If the release has a download URL
+    if ($WebResponse.assets.browser_download_url) {
+        return $WebResponse.assets.browser_download_url
+    }
+
+    # If the release has a zipball url only
+    if ($WebResponse.zipball_url) {
+        return $WebResponse.zipball_url
+    }
+
 }
 
 # Load the configuration
@@ -93,21 +105,27 @@ EmptyExtracts
 $CONFIG.addons | ForEach-Object {
     Write-Host "Processing: $($_.url)"
 
-    # Fetch the information about the release
-    $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $_.url
+    # Switch to determine the type of download
+    $downloadLink = ""
 
-    # Get the url and name of the latest file
-    $addonFile = GetDownloadLink -WebResponse $WebResponse
-    $addonFileName = GetDownloadName -WebResponse $WebResponse
+    if ($_.type -eq "github") {
+        $downloadLink = GithubDownload -Url $_.url
+    }
+    else {
+        $downloadLink = $_.url
+    }
+
+    # Get the extract and download path
+    $downloadPath = GetDownloadName -Link $downloadLink
 
     # Download the located version of the file
-    Invoke-WebRequest -Uri $addonFile -OutFile "$PSScriptRoot\Extract\$addonFileName.zip"
+    Invoke-WebRequest -Uri $downloadLink -OutFile "$PSScriptRoot\Extract\$downloadPath.zip"
 
     # Extract the newer version of the addon into the folder
-    Expand-Archive -Path "$PSScriptRoot\Extract\$addonFileName.zip" -DestinationPath "$PSScriptRoot\Extract\$addonFileName"
+    Expand-Archive -Path "$PSScriptRoot\Extract\$downloadPath.zip" -DestinationPath "$PSScriptRoot\Extract\$downloadPath"
 
     # File the folders which contain the toc files
-    $tocFiles = FindTocFiles -Path "$PSScriptRoot\Extract\$addonFileName"
+    $tocFiles = FindTocFiles -Path "$PSScriptRoot\Extract\$downloadPath"
 
     # Loop through all of the top level addons found
     $tocFiles | ForEach-Object {

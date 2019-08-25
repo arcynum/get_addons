@@ -1,8 +1,16 @@
 {
 	"wow_classic_folder": "C:\\Users\\Chris Hamilton\\Games\\Battle.net\\World of Warcraft\\_classic_\\",
 	"addons": [{
-		"url": "https://api.github.com/repos/AeroScripts/QuestieDev/releases/latest"
+		"type": "direct",
+		"url": "https://legacy-wow.com/uploads/addons/Recount/Recount.zip"
 	}, {
-		"url": "https://api.github.com/repos/laytya/Atlas/releases/latest"
+		"type": "github",
+		"url": "https://github.com/AeroScripts/QuestieDev"
+	}, {
+		"type": "github",
+		"url": "https://github.com/laytya/Atlas"
+	}, {
+		"type": "github",
+		"url": "https://github.com/wardz/ClassicCastbars"
 	}]
 }

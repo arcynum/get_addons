@@ -1,62 +1,160 @@
 
+# Function to load the configuration file for use
+Function LoadConfig {
+    param([string]$Filename)
+
+    $jsonContent = Get-Content -Raw -Path $Filename | ConvertFrom-Json
+    return $jsonContent
+}
+
+# Function which returns the version of the addon from the TOC file
+Function GetAddonVersion {
+    param([string]$Path)
+
+    $tocContent = Select-String -Path $Path -Pattern '(?:Version:?)\s(.*)$'
+    $version = $tocContent.Matches.Groups[1].Value
+
+    return $version
+}
+
+# Get the addon download link
+Function GetDownloadLink {
+    param($WebResponse)
+
+    if ($WebResponse.assets.browser_download_url) {
+        return $WebResponse.assets.browser_download_url
+    }
+
+    if ($WebResponse.zipball_url) {
+        return $WebResponse.zipball_url
+    }
+}
+
+# Get the addon folder name
+Function GetDownloadName {
+    param($WebResponse)
+
+    if ($WebResponse.name) {
+        return $WebResponse.name
+    }
+
+    return "WUT"
+}
+
+# Loop until first layer of TOC files
+# Cap the depth at 5 layers to prevent an infinite loop
+Function FindTocFiles {
+    param([string]$Path)
+
+    $i = 1
+    $files = 0
+    Do {
+        $files = Get-ChildItem -Path $Path -Filter *.toc -Recurse -Depth $i
+        $i++
+    } While ($files.Count -eq 0 -And $files.Count -le 5)
+
+    return $files
+}
+
+# Empty the extract folder
+Function EmptyExtracts {
+    Remove-Item –path "$PSScriptRoot\Extract\*" -Recurse -Force
+}
+
+# Load the configuration
+$CONFIG = LoadConfig -Filename "config.json"
+
 # Create the extract folder - if not exist
 if (!(Test-Path "$PSScriptRoot\Extract")) {
-    New-Item -Path "$PSScriptRoot" -Name "Extract" -ItemType "directory"
+    New-Item -Path "$PSScriptRoot" -Name "Extract" -ItemType "directory" | Out-Null
 }
 
 # Create the archive folder - it not exist
 if (!(Test-Path "$PSScriptRoot\Archive")) {
-    New-Item -Path "$PSScriptRoot" -Name "Archive" -ItemType "directory"
+    New-Item -Path "$PSScriptRoot" -Name "Archive" -ItemType "directory" | Out-Null
 }
 
 # Specify the location of your wow classic addon folder.
-$WOW_CLASSIC_FOLDER = "C:\Users\Chris Hamilton\Games\Battle.net\World of Warcraft\_classic_\"
+$WOW_CLASSIC_FOLDER = $CONFIG.wow_classic_folder
 $WOW_CLASSIC_ADDONS_FOLDER = "$WOW_CLASSIC_FOLDER\Interface\AddOns"
 $WOW_CLASSIC_WTF_FOLDER = "$WOW_CLASSIC_FOLDER\WTF"
 
 # Create a backup folder in the archive folder
 $timestamp = Get-Date -Format "yyyy_MM_dd_HH_mm_ss"
-New-Item -Path "$PSScriptRoot\Archive\" -Name "$timestamp" -ItemType "directory"
+New-Item -Path "$PSScriptRoot\Archive\" -Name $timestamp -ItemType "directory" | Out-Null
 
-# Backup the current wow addons folder
-# Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER" -Destination "$PSScriptRoot\Archive\$timestamp" -Recurse -Force
-# Copy-Item "$WOW_CLASSIC_WTF_FOLDER" -Destination "$PSScriptRoot\Archive\$timestamp" -Recurse -Force
+# Backup the current wow WTF folder
+Copy-Item "$WOW_CLASSIC_WTF_FOLDER" -Destination "$PSScriptRoot\Archive\$timestamp" -Recurse -Force
 
 # Clear the extract scratch folder
-Remove-Item –path "$PSScriptRoot\Extract\*" -Recurse -Force
+EmptyExtracts
 
-# The github URL of the addon
-$url = 'https://api.github.com/repos/AeroScripts/QuestieDev/releases/latest'
+# Loop through the list of addons to check
+$CONFIG.addons | ForEach-Object {
+    Write-Host "Processing: $($_.url)"
 
-# Fetch the information about the release
-$WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $url
+    # Fetch the information about the release
+    $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $_.url
 
-# Get the url and name of the latest file
-$addonFile = $WebResponse.assets.browser_download_url
-$addonFileName = $WebResponse.assets.name
+    # Get the url and name of the latest file
+    $addonFile = GetDownloadLink -WebResponse $WebResponse
+    $addonFileName = GetDownloadName -WebResponse $WebResponse
 
-# Download the located version of the file
-Invoke-WebRequest -Uri $addonFile -OutFile "$PSScriptRoot\$addonFileName"
+    # Download the located version of the file
+    Invoke-WebRequest -Uri $addonFile -OutFile "$PSScriptRoot\Extract\$addonFileName.zip"
 
-# Extract the newer version of the addon into the folder
-Expand-Archive -Path "$PSScriptRoot\$addonFileName" -DestinationPath "$PSScriptRoot\Extract\$addonFileName"
+    # Extract the newer version of the addon into the folder
+    Expand-Archive -Path "$PSScriptRoot\Extract\$addonFileName.zip" -DestinationPath "$PSScriptRoot\Extract\$addonFileName"
 
-# File the folders which contain the toc files
-$tocFiles = Get-ChildItem -Path "$PSScriptRoot\Extract\$addonFileName" -Filter *.toc -Recurse -Depth 1
-$tocFiles | ForEach-Object { 
-    $tocName = $_.Name
-    $tocDirectory = $_.Directory
-    $tocBaseName = Write-Host $_.BaseName
+    # File the folders which contain the toc files
+    $tocFiles = FindTocFiles -Path "$PSScriptRoot\Extract\$addonFileName"
 
-    # Search for the addon in the wow addons folder
-    # Parse the located toc file
-    $tocContent = Select-String -Path "$tocDirectory\$tocName" -Pattern '(?:Version:)\s(.*)$'
-    $downloadedVersion = $tocContent.Matches.Groups[1].Value
+    # Loop through all of the top level addons found
+    $tocFiles | ForEach-Object {
+        $tocName = $_.Name
+        $tocDirectory = $_.Directory
+
+        # Get the name of the addons extracted folder
+        $addonFolderName = Split-Path -Path $tocDirectory -Leaf
+
+        # Check if the addon is currently installed
+        if (!(Test-Path -Path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName")) {
+            Write-Host "$addonFileName is not currently installed. Installing now."
+
+            # Install the new addon
+            Copy-Item $tocDirectory -Destination $WOW_CLASSIC_ADDONS_FOLDER -Recurse -Force
+
+            # Break out of the current loop, as this is a newly installed addon
+            return
+        }
+
+        # Search for the addon in the wow addons folder
+        # Parse the located toc file
+        $downloadedVersion = GetAddonVersion -Path "$tocDirectory\$tocName"
+
+        # Find the installed version of the addon
+        $installedVersion = GetAddonVersion -Path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName\$tocName"
+
+        # If the downloaded version does not match the installed version, then replace it
+        if ($downloadedVersion -ne $installedVersion) {
+
+            # Backup the exist addon
+            Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons" -Recurse -Force
+
+            # Delete the installed version
+            Remove-Item –path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Recurse -Force
+
+            # Install the new version
+            Copy-Item $tocDirectory -Destination $WOW_CLASSIC_ADDONS_FOLDER -Recurse -Force
+
+
+        } else {
+            Write-Host "$addonFolderName - $installedVersion is already up to date"
+        }
+
+    }
 
 }
 
-# Check if the newest version is up to date
-
-# Delete the older version of the file
-
-# Delete the extracted folder
+# Clean up the extracted folder contents
+EmptyExtracts

@@ -1,0 +1,8 @@
+{
+	"wow_classic_folder": "C:\\Users\\Chris Hamilton\\Games\\Battle.net\\World of Warcraft\\_classic_\\",
+	"addons": [{
+		"url": "https://api.github.com/repos/AeroScripts/QuestieDev/releases/latest"
+	}, {
+		"url": "https://api.github.com/repos/laytya/Atlas/releases/latest"
+	}]
+}

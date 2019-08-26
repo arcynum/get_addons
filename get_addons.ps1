@@ -21,7 +21,11 @@ Function GetAddonVersion {
 Function GetDownloadName {
     param($Link)
 
-    $downloadPath = Split-Path -Path $Link -Leaf
+    # If its one of the shitty cf urls, trim the file off the end
+    $cleanLink = $Link -replace "/file", ""
+
+    # Create a tidy download name based on the cleaned up version
+    $downloadPath = Split-Path -Path $cleanLink -Leaf
     $splitPath = $downloadPath -split "\."
     return $splitPath[0]
 }

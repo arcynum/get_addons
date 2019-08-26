@@ -116,7 +116,8 @@ $CONFIG.addons | ForEach-Object {
     }
 
     # Get the extract and download path
-    $downloadPath = GetDownloadName -Link $downloadLink
+    # $downloadPath = GetDownloadName -Link $downloadLink
+    $downloadPath = GetDownloadName -Link $_.url
 
     # Download the located version of the file
     Invoke-WebRequest -Uri $downloadLink -OutFile "$PSScriptRoot\Extract\$downloadPath.zip"
@@ -147,14 +148,17 @@ $CONFIG.addons | ForEach-Object {
         }
 
         # Search for the addon in the wow addons folder
-        # Parse the located toc file
-        $downloadedVersion = GetAddonVersion -Path "$tocDirectory\$tocName"
+        # Hash the downloaded toc file
+        $downloadedTocHash = Get-FileHash "$tocDirectory\$tocName"
 
-        # Find the installed version of the addon
-        $installedVersion = GetAddonVersion -Path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName\$tocName"
+        # Hash the currently installed toc file
+        $installedTocHash = Get-FileHash "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName\$tocName"
 
         # If the downloaded version does not match the installed version, then replace it
-        if ($downloadedVersion -ne $installedVersion) {
+        if ($downloadedTocHash.Hash -ne $installedTocHash.Hash) {
+
+            # Let the user know the addon is out of date
+            Write-Host "$addonFolderName is out of date - installing the latest version"
 
             # Backup the exist addon
             Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons" -Recurse -Force
@@ -167,7 +171,7 @@ $CONFIG.addons | ForEach-Object {
 
 
         } else {
-            Write-Host "$addonFolderName - $installedVersion is already up to date"
+            Write-Host "$addonFolderName is already up to date"
         }
 
     }

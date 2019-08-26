@@ -138,7 +138,7 @@ $CONFIG.addons | ForEach-Object {
 
         # Check if the addon is currently installed
         if (!(Test-Path -Path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName")) {
-            Write-Host "$addonFileName is not currently installed. Installing now."
+            Write-Host "$addonFolderName is not currently installed. Installing now."
 
             # Install the new addon
             Copy-Item $tocDirectory -Destination $WOW_CLASSIC_ADDONS_FOLDER -Recurse -Force
@@ -161,7 +161,7 @@ $CONFIG.addons | ForEach-Object {
             Write-Host "$addonFolderName is out of date - installing the latest version"
 
             # Backup the exist addon
-            Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons" -Recurse -Force
+            Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons\$addonFolderName" -Recurse -Force
 
             # Delete the installed version
             Remove-Item –path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Recurse -Force

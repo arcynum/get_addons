@@ -1,0 +1,14 @@
+{
+	"wow_classic_folder": "C:\\Users\\<someguy>\\Games\\Battle.net\\World of Warcraft\\_classic_\\",
+	"addons": [{
+		"service": "github",
+		"release": "latest",
+		"url": "https://github.com/user/repository"
+	}, {
+		"service": "github",
+		"branch": "master",
+		"url": "https://github.com/user/repository"
+	}, {
+		"url": "https://example.com/addon.zip"
+	}]
+}

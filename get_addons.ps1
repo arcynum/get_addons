@@ -58,10 +58,6 @@ Function GithubDownload {
         [Parameter(Mandatory=$true)][string]$Url
     )
 
-    Write-Host $Branch
-    Write-Host $Release
-    Write-Host $Url
-
     # Find the github user and repo in the url
     $urlMatch = $Url | Select-String -Pattern 'github.com\/(.*)\/(.*)'
     $user = $urlMatch.Matches.Groups[1].Value
@@ -70,36 +66,33 @@ Function GithubDownload {
     # Pull the information from the github API
     $apiUrl = ""
 
-    Write-Host $PSBoundParameters
-
-        # If the download request is for a branch
-    if ($Branch) {
-        $apiUrl = "https://github.com/$user/$repo/archive/$Branch.zip"
-    }
-    elseif ($Release) {
+    # If the download request is for a specific release
+    if ($Release) {
         $apiUrl = "https://api.github.com/repos/$user/$repo/releases/$Release"
+
+        # Fetch the information about the release
+        $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $apiUrl
+
+        # If the release has a download URL
+        if ($WebResponse.assets.browser_download_url) {
+            return $WebResponse.assets.browser_download_url
+        }
+
+        # If the release has a zipball url only
+        if ($WebResponse.zipball_url) {
+            return $WebResponse.zipball_url
+        }
     }
+    
+    # If the download is for a specific branch
+    elseif ($Branch) {
+        return "https://github.com/$user/$repo/archive/$Branch.zip"
+    }
+
+    # Otherwise just grab the master archive
     else {
-        $apiUrl = "https://github.com/$user/$repo/archive/master.zip"
+        return "https://github.com/$user/$repo/archive/master.zip"
     }
-
-    Write-Host $apiUrl
-
-    exit
-
-    # Fetch the information about the release
-    $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $apiUrl
-
-    # If the release has a download URL
-    if ($WebResponse.assets.browser_download_url) {
-        return $WebResponse.assets.browser_download_url
-    }
-
-    # If the release has a zipball url only
-    if ($WebResponse.zipball_url) {
-        return $WebResponse.zipball_url
-    }
-
 }
 
 # Load the configuration
@@ -143,8 +136,6 @@ $CONFIG.addons | ForEach-Object {
     else {
         $downloadLink = $_.url
     }
-
-    exit
 
     # Get the extract and download path
     # $downloadPath = GetDownloadName -Link $downloadLink
@@ -192,13 +183,13 @@ $CONFIG.addons | ForEach-Object {
             Write-Host "$addonFolderName is out of date - installing the latest version"
 
             # Backup the exist addon
-            Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons\$addonFolderName" -Recurse -Force
+            # Copy-Item "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Destination "$PSScriptRoot\Archive\$timestamp\Addons\$addonFolderName" -Recurse -Force
 
             # Delete the installed version
-            Remove-Item –path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Recurse -Force
+            # Remove-Item –path "$WOW_CLASSIC_ADDONS_FOLDER\$addonFolderName" -Recurse -Force
 
             # Install the new version
-            Copy-Item $tocDirectory -Destination $WOW_CLASSIC_ADDONS_FOLDER -Recurse -Force
+            # Copy-Item $tocDirectory -Destination $WOW_CLASSIC_ADDONS_FOLDER -Recurse -Force
 
 
         } else {

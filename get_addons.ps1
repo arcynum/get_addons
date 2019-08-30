@@ -52,7 +52,15 @@ Function EmptyExtracts {
 
 # Download github versions of addons
 Function GithubDownload {
-    param([string]$Url)
+    param(
+        [string]$Branch,
+        [string]$Release,
+        [Parameter(Mandatory=$true)][string]$Url
+    )
+
+    Write-Host $Branch
+    Write-Host $Release
+    Write-Host $Url
 
     # Find the github user and repo in the url
     $urlMatch = $Url | Select-String -Pattern 'github.com\/(.*)\/(.*)'
@@ -60,7 +68,24 @@ Function GithubDownload {
     $repo = $urlMatch.Matches.Groups[2].Value   
 
     # Pull the information from the github API
-    $apiUrl = "https://api.github.com/repos/$user/$repo/releases/latest"
+    $apiUrl = ""
+
+    Write-Host $PSBoundParameters
+
+        # If the download request is for a branch
+    if ($Branch) {
+        $apiUrl = "https://github.com/$user/$repo/archive/$Branch.zip"
+    }
+    elseif ($Release) {
+        $apiUrl = "https://api.github.com/repos/$user/$repo/releases/$Release"
+    }
+    else {
+        $apiUrl = "https://github.com/$user/$repo/archive/master.zip"
+    }
+
+    Write-Host $apiUrl
+
+    exit
 
     # Fetch the information about the release
     $WebResponse =  Invoke-RestMethod -Method 'Get' -Uri $apiUrl
@@ -112,12 +137,14 @@ $CONFIG.addons | ForEach-Object {
     # Switch to determine the type of download
     $downloadLink = ""
 
-    if ($_.type -eq "github") {
-        $downloadLink = GithubDownload -Url $_.url
+    if ($_.service -eq "github") {
+        $downloadLink = GithubDownload -Release $_.release -Branch $_.branch -Url $_.url
     }
     else {
         $downloadLink = $_.url
     }
+
+    exit
 
     # Get the extract and download path
     # $downloadPath = GetDownloadName -Link $downloadLink
